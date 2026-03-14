@@ -5,8 +5,11 @@
 
 import { Puppet, PuppetMeta } from '../lib/inochi2d/puppet';
 import { Node } from '../lib/inochi2d/nodes/node';
-import { inImportFromFile } from '../lib/inochi2d/inp';
+import { inImportFromFile, inImportFromURL } from '../lib/inochi2d/inp';
 import { SceneManager } from '../vtubing/scene';
+
+const EXAMPLE_MODEL_URL =
+    'https://raw.githubusercontent.com/Inochi2D/inochi2d-ts/main/public/Aka.inx';
 
 export class ModelEditor {
     private container: HTMLElement;
@@ -36,6 +39,7 @@ export class ModelEditor {
                             <button class="btn" id="file-pick-btn">Choose File</button>
                             <input type="file" id="file-input" accept=".inx" style="display:none" />
                         </div>
+                        <button class="btn btn-primary btn-block btn-sm" id="editor-load-example" style="margin-top:0.75rem">Load Example (Aka)</button>
                     </div>
                     <div class="editor-section" id="meta-section" style="display:none">
                         <h3>📋 Puppet Info</h3>
@@ -90,6 +94,26 @@ export class ModelEditor {
                 this.loadFile(e.dataTransfer.files[0]);
             }
         });
+
+        const exampleBtn = document.getElementById('editor-load-example')!;
+        exampleBtn.addEventListener('click', () => this.loadExampleModel());
+    }
+
+    private async loadExampleModel(): Promise<void> {
+        const dropZone = document.getElementById('file-drop-zone')!;
+        const exampleBtn = document.getElementById('editor-load-example') as HTMLButtonElement;
+        dropZone.innerHTML = '<p>Downloading example model (Aka.inx)...</p>';
+        exampleBtn.disabled = true;
+
+        try {
+            this.puppet = await inImportFromURL(EXAMPLE_MODEL_URL);
+            this.onModelLoaded('Aka.inx', dropZone);
+        } catch (err) {
+            dropZone.innerHTML = `<p>❌ Error loading example</p><p class="error-text">${err instanceof Error ? err.message : String(err)}</p>`;
+            console.error('Error loading example model:', err);
+        } finally {
+            exampleBtn.disabled = false;
+        }
     }
 
     private async loadFile(file: File): Promise<void> {
@@ -98,36 +122,7 @@ export class ModelEditor {
 
         try {
             this.puppet = await inImportFromFile(file);
-
-            // Set up the 3D viewport
-            const canvasContainer = document.getElementById('editor-canvas-container')!;
-            canvasContainer.innerHTML = '';
-            if (this.scene) {
-                this.scene.destroy();
-            }
-            this.scene = new SceneManager(canvasContainer);
-            this.scene.loadPuppet(this.puppet);
-
-            // Update UI
-            dropZone.innerHTML = `<p>✅ Loaded: ${file.name}</p><button class="btn" id="file-pick-btn-2">Load Another</button><input type="file" id="file-input-2" accept=".inx" style="display:none" />`;
-
-            const pickBtn2 = document.getElementById('file-pick-btn-2');
-            const fileInput2 = document.getElementById('file-input-2') as HTMLInputElement;
-            if (pickBtn2 && fileInput2) {
-                pickBtn2.addEventListener('click', () => fileInput2.click());
-                fileInput2.addEventListener('change', () => {
-                    if (fileInput2.files && fileInput2.files.length > 0) {
-                        this.loadFile(fileInput2.files[0]);
-                    }
-                });
-            }
-
-            this.showMetadata(this.puppet.meta);
-            this.showNodeTree(this.puppet.rootNode);
-
-            if (this.onPuppetLoaded) {
-                this.onPuppetLoaded(this.puppet);
-            }
+            this.onModelLoaded(file.name, dropZone);
         } catch (err) {
             dropZone.innerHTML = `<p>❌ Error loading file</p><p class="error-text">${err instanceof Error ? err.message : String(err)}</p><button class="btn" id="file-pick-btn-retry">Try Again</button><input type="file" id="file-input-retry" accept=".inx" style="display:none" />`;
             const retryBtn = document.getElementById('file-pick-btn-retry');
@@ -141,6 +136,40 @@ export class ModelEditor {
                 });
             }
             console.error('Error loading model:', err);
+        }
+    }
+
+    private onModelLoaded(fileName: string, dropZone: HTMLElement): void {
+        if (!this.puppet) return;
+
+        // Set up the 3D viewport
+        const canvasContainer = document.getElementById('editor-canvas-container')!;
+        canvasContainer.innerHTML = '';
+        if (this.scene) {
+            this.scene.destroy();
+        }
+        this.scene = new SceneManager(canvasContainer);
+        this.scene.loadPuppet(this.puppet);
+
+        // Update UI
+        dropZone.innerHTML = `<p>✅ Loaded: ${this.escapeHtml(fileName)}</p><button class="btn" id="file-pick-btn-2">Load Another</button><input type="file" id="file-input-2" accept=".inx" style="display:none" />`;
+
+        const pickBtn2 = document.getElementById('file-pick-btn-2');
+        const fileInput2 = document.getElementById('file-input-2') as HTMLInputElement;
+        if (pickBtn2 && fileInput2) {
+            pickBtn2.addEventListener('click', () => fileInput2.click());
+            fileInput2.addEventListener('change', () => {
+                if (fileInput2.files && fileInput2.files.length > 0) {
+                    this.loadFile(fileInput2.files[0]);
+                }
+            });
+        }
+
+        this.showMetadata(this.puppet.meta);
+        this.showNodeTree(this.puppet.rootNode);
+
+        if (this.onPuppetLoaded) {
+            this.onPuppetLoaded(this.puppet);
         }
     }
 

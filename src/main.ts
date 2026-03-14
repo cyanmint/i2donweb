@@ -14,7 +14,10 @@ import { FaceTracker, FaceTrackingData } from './capture/face-tracker';
 import { SceneManager } from './vtubing/scene';
 import { PuppetController } from './vtubing/puppet-controller';
 import { ModelEditor } from './editor/model-editor';
-import { inImportFromFile } from './lib/inochi2d/inp';
+import { inImportFromFile, inImportFromURL } from './lib/inochi2d/inp';
+
+const EXAMPLE_MODEL_URL =
+    'https://raw.githubusercontent.com/Inochi2D/inochi2d-ts/main/public/Aka.inx';
 
 // === Application State ===
 let faceTracker: FaceTracker | null = null;
@@ -157,6 +160,7 @@ function renderVTubingPage(): void {
                     <h3>📁 Load Model</h3>
                     <input type="file" id="vtubing-file-input" accept=".inx" style="display:none" />
                     <button class="btn btn-secondary btn-block btn-sm" id="btn-load-model">Choose .inx File</button>
+                    <button class="btn btn-primary btn-block btn-sm" id="btn-load-example" style="margin-top:0.5rem">Load Example (Aka)</button>
                     <p id="vtubing-model-status" style="margin-top:0.5rem;font-size:0.8rem;color:var(--text-secondary)">No model loaded</p>
                 </div>
             </div>
@@ -201,6 +205,9 @@ function setupVTubingControls(): void {
             await loadVTubingModel(fileInput.files[0]);
         }
     });
+
+    const btnLoadExample = document.getElementById('btn-load-example')!;
+    btnLoadExample.addEventListener('click', () => loadVTubingExampleModel());
 
     smoothingSlider.addEventListener('input', () => {
         const value = parseInt(smoothingSlider.value) / 100;
@@ -355,6 +362,35 @@ async function loadVTubingModel(file: File): Promise<void> {
     } catch (err) {
         console.error('Failed to load model:', err);
         statusEl.textContent = `❌ Error: ${err instanceof Error ? err.message : 'Failed to load'}`;
+    }
+}
+
+async function loadVTubingExampleModel(): Promise<void> {
+    const statusEl = document.getElementById('vtubing-model-status')!;
+    const btnExample = document.getElementById('btn-load-example') as HTMLButtonElement;
+    statusEl.textContent = 'Downloading example model (Aka.inx)...';
+    btnExample.disabled = true;
+
+    try {
+        const puppet = await inImportFromURL(EXAMPLE_MODEL_URL);
+
+        const container = document.getElementById('vtubing-canvas-container')!;
+        container.innerHTML = '';
+
+        if (vtubingScene) {
+            vtubingScene.destroy();
+        }
+
+        vtubingScene = new SceneManager(container);
+        vtubingScene.loadPuppet(puppet);
+        puppetController = new PuppetController(vtubingScene);
+
+        statusEl.textContent = `✅ ${puppet.meta.name || 'Aka (example)'}`;
+    } catch (err) {
+        console.error('Failed to load example model:', err);
+        statusEl.textContent = `❌ Error: ${err instanceof Error ? err.message : 'Failed to load'}`;
+    } finally {
+        btnExample.disabled = false;
     }
 }
 
