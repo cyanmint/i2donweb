@@ -34,7 +34,7 @@ function deserializeDrawable(puppet: Puppet, json: Record<string, unknown>, draw
         ? (json.masks as Record<string, unknown>[]).map((mask) => {
             const maskData = new MaskData();
             if (mask.mode) {
-                switch (json.blend_mode as string) {
+                switch (mask.mode as string) {
                     case "Mask":
                         maskData.mode = BlendMode.ClipToLower;
                         break;
