@@ -73,7 +73,7 @@ export class SimplePhysics extends Node {
     private dBob: Vector2 = new Vector2(0, 0);
     private initialized: boolean = false;
     /** Effective gravity for the current frame (`gravity` scaled by the puppet's global physics settings). */
-    private finalGravity: number = 1;
+    private effectiveGravity: number = 1;
 
     private worldAnchor(): Vector2 {
         return this.local_only
@@ -94,7 +94,7 @@ export class SimplePhysics extends Node {
 
     private pendulumDerivative(state: number[]): number[] {
         const [angle, dAngle] = state;
-        const lengthRatio = this.finalGravity / this.length;
+        const lengthRatio = this.effectiveGravity / this.length;
         const critDamp = 2 * Math.sqrt(Math.max(0, lengthRatio));
         const dd = -lengthRatio * Math.sin(angle) - dAngle * this.angle_damping * critDamp;
         return [dAngle, dd];
@@ -117,14 +117,14 @@ export class SimplePhysics extends Node {
         const [bobX, bobY, dBobX, dBobY] = state;
         const springKsqrt = this.frequency * 2 * Math.PI;
         const springK = springKsqrt * springKsqrt;
-        const g = this.finalGravity;
+        const g = this.effectiveGravity;
         const restLength = this.length - g / springK;
 
         const offPos = new Vector2(bobX - this.anchor.x, bobY - this.anchor.y);
         const dist = offPos.length();
         const offPosNorm = dist > 0 ? offPos.clone().divideScalar(dist) : new Vector2(0, 1);
 
-        const lengthRatio = this.finalGravity / this.length;
+        const lengthRatio = this.effectiveGravity / this.length;
         const critDampAngle = 2 * Math.sqrt(Math.max(0, lengthRatio));
         const critDampLength = 2 * springKsqrt;
 
@@ -214,12 +214,17 @@ export class SimplePhysics extends Node {
     updateDriver(deltaSeconds: number, puppet: Puppet): void {
         if (!this.initialized) this.reset();
 
-        this.finalGravity = this.gravity * puppet.physicsGravity * puppet.physicsPixelsPerMeter;
+        this.effectiveGravity = this.gravity * puppet.physicsGravity * puppet.physicsPixelsPerMeter;
         this.anchor = this.worldAnchor();
 
-        // Timestep is limited to 10s, and integrated in fixed 0.01s steps
-        // for stability, with any remainder applied as a final partial step.
-        let h = Math.min(deltaSeconds, 10);
+        // The timestep is clamped to a small maximum (rather than the 10s
+        // used by the reference D implementation, which assumes a native,
+        // non-blocking simulation loop) to bound the number of fixed 0.01s
+        // sub-steps run per call and avoid a long main-thread stall after a
+        // dropped frame or tab being backgrounded. Integrated in fixed
+        // 0.01s steps for stability, with any remainder applied as a final
+        // partial step.
+        let h = Math.min(deltaSeconds, 1);
         while (h > 0.01) {
             this.tick(0.01);
             h -= 0.01;
