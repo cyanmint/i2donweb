@@ -237,6 +237,7 @@ export class Param {
                 case 'transform.r.y': node.paramOffset.rot.y += scalar; break;
                 case 'transform.r.z': node.paramOffset.rot.z += scalar; break;
                 case 'zSort': node.paramOffset.zsort += scalar; break;
+                case 'opacity': node.paramOffset.opacity += scalar; break;
                 default: break;
             }
         }

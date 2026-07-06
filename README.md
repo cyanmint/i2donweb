@@ -54,3 +54,9 @@ translated from and/or based on [Inochi2D](https://github.com/Inochi2D/inochi2d)
 and [Inochi Creator](https://github.com/Inochi2D/inochi-creator), both created by
 the Inochi2D Project and distributed under the BSD 2-Clause License. See
 [THIRD_PARTY_NOTICES.md](./THIRD_PARTY_NOTICES.md) for full attribution.
+
+## License
+
+This project is distributed under the BSD 2-Clause License. See
+[LICENSE](./LICENSE) for the full text and for references to the upstream
+Inochi2D / Inochi Creator projects this code is translated from.

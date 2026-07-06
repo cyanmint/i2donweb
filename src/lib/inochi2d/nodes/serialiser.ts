@@ -5,7 +5,7 @@
 
 import { deserializeTransform } from "../math/transform";
 import { MeshData } from "../meshdata";
-import { Node, BlendMode, PathDeform } from "./node";
+import { Node, BlendMode, PathDeform, Composite, MaskingMode } from "./node";
 import { Drawable, Part, Mask, MaskData } from "./drawable";
 import { Puppet } from "../puppet";
 
@@ -99,6 +99,37 @@ function deserializePathDeform(puppet: Puppet, json: Record<string, unknown>): P
     return pathDeform;
 }
 
+function deserializeComposite(puppet: Puppet, json: Record<string, unknown>): Composite {
+    let composite = new Composite();
+    composite = deserializeBaseProperties(puppet, json, composite) as Composite;
+
+    composite.opacity = json.opacity !== undefined ? json.opacity as number : composite.opacity;
+    composite.mask_mode = json.mask_mode !== undefined ? json.mask_mode as MaskingMode : composite.mask_mode;
+    composite.mask_threshold = json.mask_threshold !== undefined ? json.mask_threshold as number : composite.mask_threshold;
+    composite.masked_by = json.masked_by !== undefined ? json.masked_by as number[] : composite.masked_by;
+
+    if (json.blend_mode) {
+        switch (json.blend_mode as string) {
+            case "Multiply":
+                composite.blend_mode = BlendMode.Multiply;
+                break;
+            case "ColorDodge":
+                composite.blend_mode = BlendMode.ColorDodge;
+                break;
+            case "LinearDodge":
+                composite.blend_mode = BlendMode.LinearDodge;
+                break;
+            case "Screen":
+                composite.blend_mode = BlendMode.Screen;
+                break;
+            default:
+                composite.blend_mode = BlendMode.Normal;
+        }
+    }
+
+    return composite;
+}
+
 function deserializeCustomNode(puppet: Puppet, json: Record<string, unknown>): Node {
     let node = new Node();
     node = deserializeBaseProperties(puppet, json, node);
@@ -119,6 +150,9 @@ export function deserializeNode(puppet: Puppet, json: Record<string, unknown>, p
             break;
         case "PathDeform":
             result = deserializePathDeform(puppet, json);
+            break;
+        case "Composite":
+            result = deserializeComposite(puppet, json);
             break;
         default:
             result = deserializeCustomNode(puppet, json);

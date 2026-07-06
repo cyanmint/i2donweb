@@ -44,12 +44,15 @@ export class ParamOffset {
     rot: THREE.Vector3 = new THREE.Vector3(0, 0, 0);
     scale: THREE.Vector2 = new THREE.Vector2(0, 0);
     zsort: number = 0;
+    /** Additive offset applied on top of a drawable/composite's base opacity. */
+    opacity: number = 0;
 
     reset(): void {
         this.trans.set(0, 0, 0);
         this.rot.set(0, 0, 0);
         this.scale.set(0, 0);
         this.zsort = 0;
+        this.opacity = 0;
     }
 }
 
@@ -150,6 +153,24 @@ export class Node {
         this.onCreateMesh();
         this.onCreateMaterials();
     }
+
+    /**
+     * Multiplies together the effective opacity (base + parameter offset,
+     * clamped to 0..1) of every ancestor `Composite` node, so that
+     * descendant drawables can factor it into their own rendered opacity.
+     * Returns `1` if there are no `Composite` ancestors.
+     */
+    getAncestorCompositeOpacity(): number {
+        let opacity = 1;
+        let current = this.parent;
+        while (current !== null) {
+            if (current instanceof Composite) {
+                opacity *= Math.min(1, Math.max(0, current.opacity + current.paramOffset.opacity));
+            }
+            current = current.parent;
+        }
+        return opacity;
+    }
 }
 
 /**
@@ -158,4 +179,23 @@ export class Node {
 export class PathDeform extends Node {
     joints: THREE.Vector2[] = [];
     bindings: { bound_to: number; bind_data: number[][] }[] = [];
+}
+
+/**
+ * Represents a Composite node: a group of `Part`/`Drawable` children that
+ * are conceptually rendered to an offscreen buffer and then composited as a
+ * single unit using `blend_mode`/`opacity`/masking, instead of each child
+ * being blended individually against the layers below.
+ *
+ * Three.js has no built-in equivalent to Inochi2D's offscreen composite
+ * buffer, so this is approximated here: the composite's effective opacity
+ * (see `Node.getAncestorCompositeOpacity`) is multiplied into each
+ * descendant `Part`'s own rendered opacity (see `Part.update`).
+ */
+export class Composite extends Node {
+    opacity: number = 1;
+    mask_mode: MaskingMode = MaskingMode.Mask;
+    mask_threshold: number = 0;
+    masked_by: NodeUuid[] = [];
+    blend_mode: BlendMode = BlendMode.Normal;
 }

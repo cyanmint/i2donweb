@@ -132,6 +132,25 @@ export class Part extends Drawable {
     masked_by: NodeUuid[] = [];
     blend_mode: BlendMode = BlendMode.Normal;
 
+    /**
+     * Re-applies this part's effective opacity (own opacity + `opacity`
+     * parameter offset, clamped to 0..1, multiplied by any ancestor
+     * `Composite`'s effective opacity) to its material every frame.
+     */
+    update() {
+        super.update();
+        if (this.threeObj instanceof THREE.Mesh && this.threeObj.material) {
+            const ownOpacity = Math.min(1, Math.max(0, this.opacity + this.paramOffset.opacity));
+            const effectiveOpacity = ownOpacity * this.getAncestorCompositeOpacity();
+            const materials = Array.isArray(this.threeObj.material) ? this.threeObj.material : [this.threeObj.material];
+            for (const mat of materials) {
+                const material = mat as THREE.Material & { opacity: number };
+                material.transparent = true;
+                material.opacity = effectiveOpacity;
+            }
+        }
+    }
+
     protected onCreateMaterials() {
         const partTextures = this.textures.map((idx) => {
             return (this.puppet as Puppet).textures[idx];
