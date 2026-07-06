@@ -289,6 +289,7 @@ export class ModelEditor {
             case 'Mask': return '🎭';
             case 'PathDeform': return '📐';
             case 'Composite': return '📦';
+            case 'SimplePhysics': return '🔗';
             default: return '📄';
         }
     }

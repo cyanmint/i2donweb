@@ -7,6 +7,7 @@ import { deserializeTransform } from "../math/transform";
 import { MeshData } from "../meshdata";
 import { Node, BlendMode, PathDeform, Composite, MaskingMode } from "./node";
 import { Drawable, Part, Mask, MaskData } from "./drawable";
+import { SimplePhysics, PhysicsModel, ParamMapMode } from "./simplephysics";
 import { Puppet } from "../puppet";
 
 function deserializeBaseProperties(puppet: Puppet, json: Record<string, unknown>, node: Node): Node {
@@ -136,6 +137,26 @@ function deserializeCustomNode(puppet: Puppet, json: Record<string, unknown>): N
     return node;
 }
 
+function deserializeSimplePhysics(puppet: Puppet, json: Record<string, unknown>): SimplePhysics {
+    let physics = new SimplePhysics();
+    physics = deserializeBaseProperties(puppet, json, physics) as SimplePhysics;
+
+    physics.target = (json.param ?? json.target) as number;
+    physics.model_type = json.model_type !== undefined ? json.model_type as PhysicsModel : physics.model_type;
+    physics.map_mode = json.map_mode !== undefined ? json.map_mode as ParamMapMode : physics.map_mode;
+    physics.gravity = json.gravity !== undefined ? json.gravity as number : physics.gravity;
+    physics.length = json.length !== undefined ? json.length as number : physics.length;
+    physics.frequency = json.frequency !== undefined ? json.frequency as number : physics.frequency;
+    physics.angle_damping = json.angle_damping !== undefined ? json.angle_damping as number : physics.angle_damping;
+    physics.length_damping = json.length_damping !== undefined ? json.length_damping as number : physics.length_damping;
+    physics.local_only = json.local_only !== undefined ? json.local_only as boolean : physics.local_only;
+    if (Array.isArray(json.output_scale)) {
+        physics.output_scale.fromArray(json.output_scale as number[]);
+    }
+
+    return physics;
+}
+
 /**
  * Deserializes a JSON object into the appropriate Node subclass.
  */
@@ -153,6 +174,9 @@ export function deserializeNode(puppet: Puppet, json: Record<string, unknown>, p
             break;
         case "Composite":
             result = deserializeComposite(puppet, json);
+            break;
+        case "SimplePhysics":
+            result = deserializeSimplePhysics(puppet, json);
             break;
         default:
             result = deserializeCustomNode(puppet, json);

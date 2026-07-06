@@ -8,6 +8,7 @@
 import { Texture } from 'three';
 import { Node } from './nodes/node';
 import { deserializeNode } from "./nodes/serialiser";
+import { SimplePhysics } from './nodes/simplephysics';
 import { Param } from './param';
 
 export const NO_THUMBNAIL = 4294967295;
@@ -61,6 +62,11 @@ export class Puppet {
     nodes: Node[] = [];
     params: Param[] = [];
 
+    /** Global gravity scale used by `SimplePhysics` nodes (from the puppet's `physics.gravity`). */
+    physicsGravity: number = 9.8;
+    /** Pixels-per-meter scale used by `SimplePhysics` nodes (from the puppet's `physics.pixelsPerMeter`). */
+    physicsPixelsPerMeter: number = 1000;
+
     /**
      * Re-applies all of this puppet's parameters to their bound nodes/meshes
      * and refreshes the puppet's transforms & mesh deformations accordingly.
@@ -77,12 +83,33 @@ export class Puppet {
 
         this.rootNode.updateRecursive();
     }
+
+    /**
+     * Advances all `SimplePhysics` driver nodes by `deltaSeconds`, pushing
+     * their simulated output into their target parameters, and then
+     * re-applies all parameters (see `updateParameters()`). Should be
+     * called once per rendered frame.
+     */
+    updatePhysics(deltaSeconds: number): void {
+        let hasPhysics = false;
+        for (const node of this.nodes) {
+            if (node instanceof SimplePhysics) {
+                node.updateDriver(deltaSeconds, this);
+                hasPhysics = true;
+            }
+        }
+        if (hasPhysics) this.updateParameters();
+    }
 }
 
-export function deserializePuppet(json: { meta: PuppetMeta; nodes: Record<string, unknown>; param?: unknown[] }, textures: Texture[]): Puppet {
+export function deserializePuppet(json: { meta: PuppetMeta; nodes: Record<string, unknown>; param?: unknown[]; physics?: { pixelsPerMeter?: number; gravity?: number } }, textures: Texture[]): Puppet {
     const puppet = new Puppet();
     puppet.meta = json.meta;
     puppet.textures = textures;
+    if (json.physics) {
+        if (typeof json.physics.pixelsPerMeter === 'number') puppet.physicsPixelsPerMeter = json.physics.pixelsPerMeter;
+        if (typeof json.physics.gravity === 'number') puppet.physicsGravity = json.physics.gravity;
+    }
     puppet.rootNode = deserializeNode(puppet, json.nodes);
     puppet.rootNode.transform.scale.y *= -1;
     // eslint-disable-next-line @typescript-eslint/no-explicit-any

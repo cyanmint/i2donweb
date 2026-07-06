@@ -38,8 +38,17 @@ export function renderPuppet(puppet: Puppet, scene: THREE.Scene, camera: THREE.C
     const rootNode = createNode(puppet.rootNode, scene, scene, puppet.textures);
     scene.add(rootNode);
 
-    const animate = function () {
+    let lastTime: number | null = null;
+
+    const animate = function (time?: number) {
         requestAnimationFrame(animate);
+
+        if (typeof time === 'number') {
+            const deltaSeconds = lastTime !== null ? (time - lastTime) / 1000 : 0;
+            lastTime = time;
+            puppet.updatePhysics(deltaSeconds);
+        }
+
         renderer.render(scene, camera);
     };
 
