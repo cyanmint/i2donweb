@@ -221,9 +221,11 @@ export class SimplePhysics extends Node {
         // used by the reference D implementation, which assumes a native,
         // non-blocking simulation loop) to bound the number of fixed 0.01s
         // sub-steps run per call and avoid a long main-thread stall after a
-        // dropped frame or tab being backgrounded. Integrated in fixed
-        // 0.01s steps for stability, with any remainder applied as a final
-        // partial step.
+        // dropped frame or tab being backgrounded. 1s caps this at 100
+        // sub-steps per call, which is cheap enough to run synchronously
+        // while still covering typical frame-drop/resume scenarios.
+        // Integrated in fixed 0.01s steps for stability, with any
+        // remainder applied as a final partial step.
         let h = Math.min(deltaSeconds, 1);
         while (h > 0.01) {
             this.tick(0.01);
