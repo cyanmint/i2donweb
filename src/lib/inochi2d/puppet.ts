@@ -7,7 +7,7 @@
 
 import { Texture } from 'three';
 import { Node } from './nodes/node';
-import { deserializeNode } from "./nodes/serialiser";
+import { deserializeNode, serializeNode } from "./nodes/serialiser";
 import { SimplePhysics } from './nodes/simplephysics';
 import { Param } from './param';
 
@@ -99,6 +99,29 @@ export class Puppet {
             }
         }
         if (hasPhysics) this.updateParameters();
+    }
+
+    /**
+     * Serializes this puppet back into the plain JSON payload shape used by
+     * `deserializePuppet` / the `.inx` puppet format (the same shape stored
+     * inside the `TRNSRTS` container's JSON payload).
+     */
+    serialize(): { meta: PuppetMeta; physics: { pixelsPerMeter: number; gravity: number }; nodes: Record<string, unknown>; param: unknown[] } {
+        const nodes = serializeNode(this.rootNode);
+        // Import applies `rootNode.transform.scale.y *= -1` once after
+        // deserialization; undo that here so the raw scale round-trips.
+        const transform = nodes.transform as { scale: number[] };
+        transform.scale = [transform.scale[0], transform.scale[1] * -1];
+
+        return {
+            meta: this.meta,
+            physics: {
+                pixelsPerMeter: this.physicsPixelsPerMeter,
+                gravity: this.physicsGravity,
+            },
+            nodes,
+            param: this.params.map((param) => param.serialize()),
+        };
     }
 }
 

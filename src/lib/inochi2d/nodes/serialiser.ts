@@ -187,3 +187,114 @@ export function deserializeNode(puppet: Puppet, json: Record<string, unknown>, p
     (puppet as Puppet).nodes.push(result);
     return result;
 }
+
+function blendModeToString(mode: BlendMode): string {
+    switch (mode) {
+        case BlendMode.Multiply:
+            return "Multiply";
+        case BlendMode.ColorDodge:
+            return "ColorDodge";
+        case BlendMode.LinearDodge:
+            return "LinearDodge";
+        case BlendMode.Screen:
+            return "Screen";
+        default:
+            return "Normal";
+    }
+}
+
+function maskModeToString(mode: BlendMode | MaskingMode): string {
+    return mode === BlendMode.SliceFromLower || mode === MaskingMode.Dodge ? "Dodge" : "Mask";
+}
+
+function serializeBaseProperties(node: Node): Record<string, unknown> {
+    return {
+        uuid: node.uuid,
+        name: node.name,
+        type: node.type,
+        enabled: node.enabled,
+        zsort: node.zsort,
+        transform: node.transform.serialize(),
+        lockToRoot: node.lockToRoot,
+        children: node.children.map((child) => serializeNode(child)),
+    };
+}
+
+function serializeDrawable(drawable: Drawable): Record<string, unknown> {
+    return {
+        ...serializeBaseProperties(drawable),
+        mesh: drawable.mesh.serialize(),
+        masks: drawable.masks.map((mask) => ({
+            source: mask.source,
+            mode: maskModeToString(mask.mode),
+        })),
+    };
+}
+
+function serializePart(part: Part): Record<string, unknown> {
+    return {
+        ...serializeDrawable(part),
+        textures: part.textures,
+        opacity: part.opacity,
+        mask_mode: part.mask_mode,
+        mask_threshold: part.mask_threshold,
+        masked_by: part.masked_by,
+        blend_mode: blendModeToString(part.blend_mode),
+    };
+}
+
+function serializeMask(mask: Mask): Record<string, unknown> {
+    return serializeDrawable(mask);
+}
+
+function serializePathDeform(pathDeform: PathDeform): Record<string, unknown> {
+    return {
+        ...serializeBaseProperties(pathDeform),
+        joints: pathDeform.joints,
+        bindings: pathDeform.bindings,
+    };
+}
+
+function serializeComposite(composite: Composite): Record<string, unknown> {
+    return {
+        ...serializeBaseProperties(composite),
+        opacity: composite.opacity,
+        mask_mode: maskModeToString(composite.mask_mode),
+        mask_threshold: composite.mask_threshold,
+        masked_by: composite.masked_by,
+        blend_mode: blendModeToString(composite.blend_mode),
+    };
+}
+
+function serializeSimplePhysics(physics: SimplePhysics): Record<string, unknown> {
+    return {
+        ...serializeBaseProperties(physics),
+        param: physics.target,
+        model_type: physics.model_type,
+        map_mode: physics.map_mode,
+        gravity: physics.gravity,
+        length: physics.length,
+        frequency: physics.frequency,
+        angle_damping: physics.angle_damping,
+        length_damping: physics.length_damping,
+        local_only: physics.local_only,
+        output_scale: physics.output_scale.toArray(),
+    };
+}
+
+function serializeCustomNode(node: Node): Record<string, unknown> {
+    return serializeBaseProperties(node);
+}
+
+/**
+ * Serializes a `Node` (and its subtype-specific properties) back into the
+ * plain JSON shape consumed by `deserializeNode` / the `.inx` puppet format.
+ */
+export function serializeNode(node: Node): Record<string, unknown> {
+    if (node instanceof Part) return serializePart(node);
+    if (node instanceof Mask) return serializeMask(node);
+    if (node instanceof PathDeform) return serializePathDeform(node);
+    if (node instanceof Composite) return serializeComposite(node);
+    if (node instanceof SimplePhysics) return serializeSimplePhysics(node);
+    return serializeCustomNode(node);
+}

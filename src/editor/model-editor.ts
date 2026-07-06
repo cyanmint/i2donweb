@@ -6,7 +6,7 @@
 import { Puppet, PuppetMeta } from '../lib/inochi2d/puppet';
 import { Node } from '../lib/inochi2d/nodes/node';
 import { Param } from '../lib/inochi2d/param';
-import { inImportFromFile, inImportFromURL } from '../lib/inochi2d/inp';
+import { inExportToFile, inImportFromFile, inImportFromURL } from '../lib/inochi2d/inp';
 import { SceneManager } from '../vtubing/scene';
 
 const EXAMPLE_MODEL_URL =
@@ -18,6 +18,7 @@ export class ModelEditor {
     private puppet: Puppet | null = null;
     private selectedNode: Node | null = null;
     private onPuppetLoaded: ((puppet: Puppet) => void) | null = null;
+    private loadedFileName: string = 'model.inx';
 
     constructor(container: HTMLElement) {
         this.container = container;
@@ -53,6 +54,10 @@ export class ModelEditor {
                     <div class="editor-section" id="params-section" style="display:none">
                         <h3>🎚️ Parameters</h3>
                         <div id="params-list" class="params-list"></div>
+                    </div>
+                    <div class="editor-section" id="export-section" style="display:none">
+                        <h3>💾 Save</h3>
+                        <button class="btn btn-primary btn-block btn-sm" id="editor-export-btn">Export .inx</button>
                     </div>
                 </div>
                 <div class="editor-viewport">
@@ -102,6 +107,19 @@ export class ModelEditor {
 
         const exampleBtn = document.getElementById('editor-load-example')!;
         exampleBtn.addEventListener('click', () => this.loadExampleModel());
+
+        const exportBtn = document.getElementById('editor-export-btn')!;
+        exportBtn.addEventListener('click', () => this.exportModel());
+    }
+
+    private exportModel(): void {
+        if (!this.puppet) return;
+        try {
+            inExportToFile(this.puppet, this.loadedFileName);
+        } catch (err) {
+            console.error('Error exporting model:', err);
+            alert(`Failed to export model: ${err instanceof Error ? err.message : String(err)}`);
+        }
     }
 
     private async loadExampleModel(): Promise<void> {
@@ -146,6 +164,7 @@ export class ModelEditor {
 
     private onModelLoaded(fileName: string, dropZone: HTMLElement): void {
         if (!this.puppet) return;
+        this.loadedFileName = fileName;
 
         // Set up the 3D viewport
         const canvasContainer = document.getElementById('editor-canvas-container')!;
@@ -173,6 +192,9 @@ export class ModelEditor {
         this.showMetadata(this.puppet.meta);
         this.showNodeTree(this.puppet.rootNode);
         this.showParameters(this.puppet.params);
+
+        const exportSection = document.getElementById('export-section')!;
+        exportSection.style.display = 'block';
 
         if (this.onPuppetLoaded) {
             this.onPuppetLoaded(this.puppet);

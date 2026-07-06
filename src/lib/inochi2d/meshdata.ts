@@ -63,4 +63,31 @@ export class MeshData {
 
         return meshData;
     }
+
+    /**
+     * Serializes this mesh data back into the plain JSON shape used by
+     * `deserialize()` / the `.inx` puppet format.
+     */
+    serialize(): { verts: number[]; uvs?: number[]; indices: number[]; origin?: number[]; grid_axes?: number[][] } {
+        const verts: number[] = [];
+        for (const vertex of this.vertices) {
+            verts.push(vertex.x, vertex.y);
+        }
+
+        const data: { verts: number[]; uvs?: number[]; indices: number[]; origin?: number[]; grid_axes?: number[][] } = {
+            verts,
+            indices: [...this.indices],
+        };
+
+        if (this.uvs) {
+            const uvs: number[] = [];
+            for (const uv of this.uvs) uvs.push(uv.x, uv.y);
+            data.uvs = uvs;
+        }
+
+        if (this.origin) data.origin = this.origin.toArray();
+        if (this.gridAxes) data.grid_axes = this.gridAxes;
+
+        return data;
+    }
 }

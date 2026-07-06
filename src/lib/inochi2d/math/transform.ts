@@ -50,6 +50,18 @@ export class Transform {
     matrix(): Matrix4 {
         return this.trs;
     }
+
+    /**
+     * Serializes this transform back into the plain JSON shape used by
+     * `deserializeTransform` / the `.inx` puppet format.
+     */
+    serialize(): { rot: number[]; scale: number[]; trans: number[] } {
+        return {
+            rot: this.rot.toArray(),
+            scale: this.scale.toArray(),
+            trans: this.trans.toArray(),
+        };
+    }
 }
 
 /**

@@ -9,7 +9,7 @@ import { Puppet, deserializePuppet } from "./puppet";
 import * as THREE from 'three';
 // @ts-expect-error binary-parser typings not resolved via exports
 import { Parser } from "binary-parser";
-import { decode } from "fast-png";
+import { decode, encode } from "fast-png";
 import { decodeTga } from "@lunapaint/tga-codec";
 
 export async function downloadFile(url: string): Promise<Uint8Array> {
@@ -93,4 +93,78 @@ export async function inImportFromURL(url: string): Promise<Puppet> {
 export async function inImportFromFile(file: File): Promise<Puppet> {
     const buffer = await file.arrayBuffer();
     return await inImport(new Uint8Array(buffer));
+}
+
+/**
+ * Exports a puppet to the `.inx`/`.inp` `TRNSRTS` container format: an
+ * 8-byte magic, the JSON payload (this puppet's serialized data, length
+ * prefixed), followed by an `TEX_SECT` texture section (each texture
+ * re-encoded as a length + encoding-type prefixed PNG blob).
+ *
+ * Translated from `inp.format.inp1.writer.writeINP1`
+ * (vendor/inochi2d/modules/inp/source/inp/format/inp1/writer.d).
+ */
+export function inExport(puppet: Puppet): Uint8Array {
+    const encoder = new TextEncoder();
+    const magic = encoder.encode("TRNSRTS\0");
+    const texSectMagic = encoder.encode("TEX_SECT");
+    const payload = encoder.encode(JSON.stringify(puppet.serialize()));
+
+    const textureBlobs: Uint8Array[] = puppet.textures.map((texture) => {
+        const image = texture.image as { width: number; height: number; data: unknown };
+        const raw = image.data;
+        const data = raw instanceof Uint8Array
+            ? raw
+            : Uint8Array.from(raw as ArrayLike<number>);
+        return encode({ width: image.width, height: image.height, data, depth: 8, channels: 4 });
+    });
+
+    let totalLength = magic.length + 4 + payload.length + texSectMagic.length + 4;
+    for (const blob of textureBlobs) totalLength += 4 + 1 + blob.length;
+
+    const buffer = new Uint8Array(totalLength);
+    const view = new DataView(buffer.buffer);
+    let offset = 0;
+
+    buffer.set(magic, offset);
+    offset += magic.length;
+    view.setUint32(offset, payload.length);
+    offset += 4;
+    buffer.set(payload, offset);
+    offset += payload.length;
+
+    buffer.set(texSectMagic, offset);
+    offset += texSectMagic.length;
+    view.setUint32(offset, textureBlobs.length);
+    offset += 4;
+    for (const blob of textureBlobs) {
+        view.setUint32(offset, blob.length);
+        offset += 4;
+        buffer[offset] = 0; // encoding type 0 = PNG
+        offset += 1;
+        buffer.set(blob, offset);
+        offset += blob.length;
+    }
+
+    return buffer;
+}
+
+/**
+ * Exports a puppet and triggers a browser download of the resulting `.inx`
+ * file (mirrors Inochi Creator's "Export" action, `creator.io.inpexport`).
+ */
+export function inExportToFile(puppet: Puppet, filename: string): void {
+    const data = inExport(puppet);
+    const blob = new Blob([data.buffer as ArrayBuffer], { type: 'application/octet-stream' });
+    const url = URL.createObjectURL(blob);
+    try {
+        const link = document.createElement('a');
+        link.href = url;
+        link.download = filename.endsWith('.inx') || filename.endsWith('.inp') ? filename : `${filename}.inx`;
+        document.body.appendChild(link);
+        link.click();
+        link.remove();
+    } finally {
+        URL.revokeObjectURL(url);
+    }
 }

@@ -46,6 +46,20 @@ export class Binding {
         binding.interpolate_mode = data.interpolate_mode ?? 'Linear';
         return binding;
     }
+
+    /**
+     * Serializes this binding back into the plain JSON shape used by
+     * `deserialize()` / the `.inx` puppet format.
+     */
+    serialize(): { node: number; param_name: string; values: unknown[][]; isSet: boolean[][]; interpolate_mode: string } {
+        return {
+            node: this.node,
+            param_name: this.param_name,
+            values: this.values,
+            isSet: this.isSet,
+            interpolate_mode: this.interpolate_mode,
+        };
+    }
 }
 
 /**
@@ -98,6 +112,32 @@ export class Param {
         param.bindings = (data.bindings ?? []).map(Binding.deserialize);
         param.value = param.defaults.clone();
         return param;
+    }
+
+    /**
+     * Serializes this parameter back into the plain JSON shape used by
+     * `deserialize()` / the `.inx` puppet format.
+     */
+    serialize(): {
+        uuid: number;
+        name: string;
+        is_vec2: boolean;
+        min: number[];
+        max: number[];
+        defaults: number[];
+        axis_points: number[][];
+        bindings: ReturnType<Binding['serialize']>[];
+    } {
+        return {
+            uuid: this.uuid,
+            name: this.name,
+            is_vec2: this.is_vec2,
+            min: this.min.toArray(),
+            max: this.max.toArray(),
+            defaults: this.defaults.toArray(),
+            axis_points: this.axis_points,
+            bindings: this.bindings.map((binding) => binding.serialize()),
+        };
     }
 
     /** Normalises a raw value between min and max to the 0..1 range. */
