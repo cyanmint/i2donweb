@@ -511,6 +511,66 @@ html, body {
     accent-color: var(--accent);
 }
 
+/* === Parameters Panel === */
+.params-list {
+    display: flex;
+    flex-direction: column;
+    gap: 0.75rem;
+    max-height: 400px;
+    overflow-y: auto;
+}
+
+.param-row {
+    display: flex;
+    flex-direction: column;
+    gap: 0.35rem;
+}
+
+.param-label {
+    font-size: 0.8rem;
+    color: var(--text-secondary);
+}
+
+.param-control {
+    display: flex;
+    align-items: center;
+    gap: 0.5rem;
+}
+
+.param-control-1d input[type="range"] {
+    flex: 1;
+    accent-color: var(--accent);
+}
+
+.param-value {
+    font-size: 0.75rem;
+    color: var(--text-secondary);
+    min-width: 3.5rem;
+    text-align: right;
+}
+
+.param-pad {
+    position: relative;
+    width: 120px;
+    height: 120px;
+    background: var(--bg-primary);
+    border: 1px solid var(--border);
+    border-radius: 6px;
+    cursor: crosshair;
+    touch-action: none;
+    flex-shrink: 0;
+}
+
+.param-pad-handle {
+    position: absolute;
+    width: 10px;
+    height: 10px;
+    margin: -5px 0 0 -5px;
+    background: var(--accent);
+    border-radius: 50%;
+    pointer-events: none;
+}
+
 /* === Home Page === */
 .home-layout {
     display: flex;

@@ -5,6 +5,7 @@
 
 import { Puppet, PuppetMeta } from '../lib/inochi2d/puppet';
 import { Node } from '../lib/inochi2d/nodes/node';
+import { Param } from '../lib/inochi2d/param';
 import { inImportFromFile, inImportFromURL } from '../lib/inochi2d/inp';
 import { SceneManager } from '../vtubing/scene';
 
@@ -48,6 +49,10 @@ export class ModelEditor {
                     <div class="editor-section" id="node-tree-section" style="display:none">
                         <h3>🌲 Node Tree</h3>
                         <div id="node-tree" class="node-tree"></div>
+                    </div>
+                    <div class="editor-section" id="params-section" style="display:none">
+                        <h3>🎚️ Parameters</h3>
+                        <div id="params-list" class="params-list"></div>
                     </div>
                 </div>
                 <div class="editor-viewport">
@@ -167,6 +172,7 @@ export class ModelEditor {
 
         this.showMetadata(this.puppet.meta);
         this.showNodeTree(this.puppet.rootNode);
+        this.showParameters(this.puppet.params);
 
         if (this.onPuppetLoaded) {
             this.onPuppetLoaded(this.puppet);
@@ -285,6 +291,116 @@ export class ModelEditor {
             case 'Composite': return '📦';
             default: return '📄';
         }
+    }
+
+    private showParameters(params: Param[]): void {
+        const section = document.getElementById('params-section')!;
+        const list = document.getElementById('params-list')!;
+
+        if (params.length === 0) {
+            section.style.display = 'none';
+            list.innerHTML = '';
+            return;
+        }
+
+        section.style.display = 'block';
+        list.innerHTML = '';
+
+        for (const param of params) {
+            const row = document.createElement('div');
+            row.className = 'param-row';
+
+            const label = document.createElement('div');
+            label.className = 'param-label';
+            label.textContent = param.name || `Param ${param.uuid}`;
+            row.appendChild(label);
+
+            if (param.is_vec2) {
+                row.appendChild(this.createParam2DPad(param));
+            } else {
+                row.appendChild(this.createParam1DSlider(param));
+            }
+
+            list.appendChild(row);
+        }
+    }
+
+    private applyParamChange(): void {
+        if (!this.puppet) return;
+        this.puppet.updateParameters();
+    }
+
+    private createParam1DSlider(param: Param): HTMLElement {
+        const wrap = document.createElement('div');
+        wrap.className = 'param-control param-control-1d';
+
+        const slider = document.createElement('input');
+        slider.type = 'range';
+        slider.min = String(param.min.x);
+        slider.max = String(param.max.x);
+        slider.step = String(Math.max((param.max.x - param.min.x) / 1000, 0.001));
+        slider.value = String(param.value.x);
+
+        const readout = document.createElement('span');
+        readout.className = 'param-value';
+        readout.textContent = param.value.x.toFixed(2);
+
+        slider.addEventListener('input', () => {
+            param.value.x = parseFloat(slider.value);
+            readout.textContent = param.value.x.toFixed(2);
+            this.applyParamChange();
+        });
+
+        wrap.appendChild(slider);
+        wrap.appendChild(readout);
+        return wrap;
+    }
+
+    private createParam2DPad(param: Param): HTMLElement {
+        const wrap = document.createElement('div');
+        wrap.className = 'param-control param-control-2d';
+
+        const pad = document.createElement('div');
+        pad.className = 'param-pad';
+
+        const handle = document.createElement('div');
+        handle.className = 'param-pad-handle';
+        pad.appendChild(handle);
+
+        const readout = document.createElement('span');
+        readout.className = 'param-value';
+
+        const updateHandlePosition = () => {
+            const nx = (param.value.x - param.min.x) / (param.max.x - param.min.x || 1);
+            const ny = (param.value.y - param.min.y) / (param.max.y - param.min.y || 1);
+            handle.style.left = `${nx * 100}%`;
+            handle.style.top = `${(1 - ny) * 100}%`;
+            readout.textContent = `${param.value.x.toFixed(2)}, ${param.value.y.toFixed(2)}`;
+        };
+
+        const setFromPointer = (e: PointerEvent) => {
+            const rect = pad.getBoundingClientRect();
+            const nx = Math.min(1, Math.max(0, (e.clientX - rect.left) / rect.width));
+            const ny = Math.min(1, Math.max(0, (e.clientY - rect.top) / rect.height));
+            param.value.x = param.min.x + nx * (param.max.x - param.min.x);
+            param.value.y = param.min.y + (1 - ny) * (param.max.y - param.min.y);
+            updateHandlePosition();
+            this.applyParamChange();
+        };
+
+        pad.addEventListener('pointerdown', (e) => {
+            pad.setPointerCapture(e.pointerId);
+            setFromPointer(e);
+        });
+        pad.addEventListener('pointermove', (e) => {
+            if (e.buttons & 1) setFromPointer(e);
+        });
+
+        updateHandlePosition();
+
+        wrap.appendChild(pad);
+        wrap.appendChild(readout);
+        return wrap;
     }
 
     private selectNode(node: Node): void {
