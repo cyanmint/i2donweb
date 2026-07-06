@@ -1,0 +1,307 @@
+/**
+    Inochi2D Animation Primitives
+
+    Copyright: 
+        Copyright © 2020-2026, Inochi2D Project
+    
+    License:
+        $(LINK2 https://github.com/Inochi2D/inochi2d/blob/main/LICENSE, BSD 2-clause License)
+    
+    Authors:
+        Luna Nielsen
+*/
+module inochi2d.animation.animation;
+import inochi2d.puppet;
+import inochi2d.param;
+import inochi2d.core;
+import inochi2d.common;
+import numath;
+import numem.sorting;
+import numem;
+
+/**
+    An animation
+*/
+struct Animation {
+public:
+@nogc:
+
+    /**
+        The timestep of each frame
+    */
+    float timestep = 0.0166;
+
+    /**
+        Whether the animation is additive.
+
+        Additive animations will not replace main animations, but add their data
+        on top of the running main animation
+    */
+    bool additive;
+
+    /**
+        The weight of the animation
+
+        This is only relevant for additive animations
+    */
+    float animationWeight;
+
+    /**
+        All of the animation lanes in this animation
+    */
+    AnimationLane[] lanes;
+
+    /**
+        Length in frames
+    */
+    int length;
+
+    /**
+        Time where the lead-in ends
+    */
+    int leadIn = -1;
+
+    /**
+        Time where the lead-out starts
+    */
+    int leadOut = -1;
+
+    /**
+        Finalizes the animation
+    */
+    void finalize(Puppet puppet) {
+        foreach (ref lane; lanes)
+            lane.finalize(puppet);
+    }
+
+    /**
+        Serialization function
+    */
+    void onSerialize(ref DataNode object, bool recursive = true) @nogc {
+        object["timestep"] = timestep;
+        object["additive"] = additive;
+        object["length"] = length;
+        object["leadIn"] = leadIn;
+        object["leadOut"] = leadOut;
+        object["animationWeight"] = animationWeight;
+
+        object["lanes"] = DataNode.createArray();
+        foreach (ref AnimationLane lane; lanes) {
+            if (lane.paramRef.targetParam) {
+                object["lanes"] ~= lane.serialize();
+            }
+        }
+    }
+
+    /**
+        Deserialization function
+    */
+    void onDeserialize(ref DataNode object, ref ModelState state) @nogc {
+        object.tryGetRef(state, timestep, "timestep", timestep.init);
+        object.tryGetRef(state, additive, "additive", additive.init);
+        object.tryGetRef(state, animationWeight, "animationWeight", animationWeight.init);
+        object.tryGetRef(state, length, "length", length.init);
+        object.tryGetRef(state, leadIn, "leadIn", leadIn.init);
+        object.tryGetRef(state, leadOut, "leadOut", leadOut.init);
+        object.tryGetRef(state, lanes, "lanes", lanes.init);
+    }
+}
+
+struct AnimationParameterRef {
+
+    /**
+        A parameter to target
+    */
+    Parameter targetParam;
+
+    /**
+        Target axis of the parameter
+    */
+    int targetAxis;
+
+}
+
+/**
+    Animation Lane
+*/
+struct AnimationLane {
+private:
+@nogc:
+    GUID refguid;
+
+public:
+
+    /**
+        Reference to parameter if any
+    */
+    AnimationParameterRef* paramRef;
+
+    /**
+        Serialization function
+    */
+    void onSerialize(ref DataNode object, bool recursive = true) @nogc {
+        object["interpolation"] = cast(uint)interpolation;
+        object["keyframes"] = frames.serialize();
+        object["merge_mode"] = cast(uint)mergeMode;
+        if (paramRef) {
+            auto targetGuid = paramRef.targetParam.guid.toString;
+            object["guid"] = targetGuid[];
+            object["target"] = paramRef.targetAxis;
+        }
+    }
+
+    /**
+        Deserialization function
+    */
+    void onDeserialize(ref DataNode object, ref ModelState state) @nogc {
+        this.paramRef = nogc_new!AnimationParameterRef(null, 0);
+        this.refguid = object.tryGetGUID(state, "uuid", "guid");
+
+        object.tryGetRef(state, interpolation, "interpolation");
+        object.tryGetRef(state, paramRef.targetAxis, "target");
+        object.tryGetRef(state, frames, "keyframes");
+        object.tryGetRef(state, mergeMode, "merge_mode", mergeMode.init);
+    }
+
+    /**
+        List of frames in the lane
+    */
+    Keyframe[] frames;
+
+    /**
+        The interpolation between each frame in the lane
+    */
+    InterpolateMode interpolation;
+
+    /**
+        Merging mode of the lane
+    */
+    ParameterMergeMode mergeMode = ParameterMergeMode.forced;
+
+    /**
+        Gets the interpolated state of a frame of animation 
+        for this lane
+    */
+    float get(float frame, bool snapSubframes = false) {
+        if (frames.length > 0) {
+
+            // If subframe snapping is turned on then we'll only run at the framerate
+            // of the animation, without any smooth interpolation on faster app rates.
+            if (snapSubframes)
+                frame = floor(frame);
+
+            // Fallback if there's only 1 frame
+            if (frames.length == 1)
+                return frames[0].value;
+
+            foreach (i; 0 .. frames.length) {
+                if (frames[i].frame < frame)
+                    continue;
+
+                // Fallback to not try to index frame -1
+                if (i == 0)
+                    return frames[0].value;
+
+                // Interpolation "time" 0->1
+                // Note we use floats here in case you're running the
+                // update step faster than the timestep of the animation
+                // This way it won't look choppy
+                float tonext = cast(float)frames[i].frame - frame;
+                float ilen = (cast(float)frames[i].frame - cast(float)frames[i - 1].frame);
+                float t = 1 - (tonext / ilen);
+
+                // Interpolation tension 0->1
+                float tension = frames[i].tension;
+
+                switch (interpolation) {
+
+                    // Nearest - Snap to the closest frame
+                case InterpolateMode.nearest:
+                    return t > 0.5 ? frames[i].value : frames[i - 1].value;
+
+                    // Stepped - Snap to the current active keyframe
+                case InterpolateMode.stepped:
+                    return frames[i - 1].value;
+
+                    // Linear - Linearly interpolate between frame A and B
+                case InterpolateMode.linear:
+                    return lerp(frames[i - 1].value, frames[i].value, t);
+
+                    // Cubic - Smoothly in a curve between frame A and B
+                case InterpolateMode.cubic:
+                    float prev = frames[max(cast(ptrdiff_t)i - 2, 0)].value;
+                    float curr = frames[max(cast(ptrdiff_t)i - 1, 0)].value;
+                    float next1 = frames[min(cast(ptrdiff_t)i, frames.length - 1)].value;
+                    float next2 = frames[min(cast(ptrdiff_t)i + 1, frames.length - 1)].value;
+
+                    // TODO: Switch formulae, catmullrom interpolation
+                    return cubic(prev, curr, next1, next2, t);
+
+                    // Bezier - Allows the user to specify beziér curves.
+                case InterpolateMode.quadratic:
+                    // TODO: Switch formulae, Beziér curve
+                    return lerp(frames[i - 1].value, frames[i].value, clamp(hermite(0, 2 * tension, 1, 2 * tension, t), 0, 1));
+
+                default:
+                    assert(0);
+                }
+            }
+            return frames[$ - 1].value;
+        }
+
+        // Fallback, no values.
+        // Ideally we won't even call this function
+        // if there's nothing to do.
+        return 0;
+    }
+
+    void finalize(Puppet puppet) {
+        if (paramRef)
+            paramRef.targetParam = puppet.findParameter(refguid);
+    }
+
+    /**
+        Updates the order of the keyframes
+    */
+    void updateFrames() {
+        nu_sort!((a, b) => a.frame < b.frame)(frames);
+    }
+}
+
+/**
+    A keyframe
+*/
+struct Keyframe {
+    /**
+        The frame at which this frame occurs
+    */
+    int frame;
+
+    /**
+        The value of the parameter at the given frame
+    */
+    float value;
+
+    /**
+        Interpolation tension for cubic/inout
+    */
+    float tension = 0.5;
+
+    /**
+        Serialization function
+    */
+    void onSerialize(ref DataNode object, bool recursive = true) @nogc {
+        object["frame"] = frame;
+        object["value"] = value;
+        object["tension"] = tension;
+    }
+
+    /**
+        Deserialization function
+    */
+    void onDeserialize(ref DataNode object, ref ModelState state) @nogc {
+        object.tryGetRef(state, frame, "frame");
+        object.tryGetRef(state, value, "value");
+        object.tryGetRef(state, tension, "tension");
+    }
+}

@@ -1,0 +1,122 @@
+name: 'Build Inochi2D Library'
+run-name: 'Build Inochi2D Library (${{ inputs.variant }})...'
+
+on:
+  workflow_call:
+    inputs:
+      target_ref:
+        required: false
+        type: string
+        default: '${{ github.ref_name }}'
+      variant:
+        required: true
+        type: string
+      build_type:
+        required: false
+        type: string
+        default: release
+      fail_fast:
+        required: false
+        type: boolean
+        default: true
+    outputs:
+      artifact:
+        description: 'The artifact that was produced.'
+        value: ${{ jobs.build.outputs.artifact }}
+      
+
+permissions:
+  contents: write
+
+jobs:
+
+  build:
+    runs-on: ${{ matrix.config.os }}
+    strategy:
+      fail-fast: ${{ inputs.fail_fast }}
+      matrix:
+        config:
+          - platform: 'osx'
+            os: 'macos-latest'
+
+          - platform: 'win32'
+            os: windows-latest
+
+          - platform: 'linux'
+            os: ubuntu-latest
+
+          - platform: 'wasm'
+            os: ubuntu-latest
+    outputs:
+      artifact: '${{ steps.finalize.outputs.artifact }}'
+      
+    steps:
+    - uses: actions/checkout@v4
+      with:
+        ref: '${{ inputs.target_ref }}'
+        
+    # Setup D Compiler
+    - uses: dlang-community/setup-dlang@v1.4.0
+      if: ${{ matrix.config.platform != 'wasm' }}
+      with:
+        compiler: ldc-latest
+    
+    # Setup WASI D compiler
+    - uses: Inochi2D/get-sdk-action@v1
+      if: ${{ matrix.config.platform == 'wasm' }}
+      with:
+        tag: v0.9.0-testing
+        sdk: ldc2-wasm32-wasi
+
+    - name: 'Build (OSX Universal)'
+      if: ${{ matrix.config.platform == 'osx' }}
+      id: osx-build
+      run: |
+        dub build --compiler=ldc2 --build=${{ inputs.build_type }} --config=${{ inputs.variant }} --arch=x86_64
+        mv out/libinochi2d.dylib out/libinochi2d-x86_64.dylib
+
+        dub build --compiler=ldc2 --build=${{ inputs.build_type }} --config=${{ inputs.variant }} --arch=arm64-apple-macos
+        mv out/libinochi2d.dylib out/libinochi2d-arm64.dylib
+
+        lipo -create out/libinochi2d-arm64.dylib out/libinochi2d-x86_64.dylib -output out/libinochi2d.dylib
+        rm out/libinochi2d-arm64.dylib out/libinochi2d-x86_64.dylib
+
+    - name: 'Build (Windows)'
+      if: ${{ matrix.config.platform == 'win32' }}
+      id: win32-build
+      shell: powershell
+      run: |
+        dub build --compiler=ldc2 --build=${{ inputs.build_type }} --config=${{ inputs.variant }}
+        cp -r examples/ out/
+
+    - name: 'Build (Linux)'
+      if: ${{ matrix.config.platform == 'linux' }}
+      id: posix-build
+      run: |
+        dub build --compiler=ldc2 --build=${{ inputs.build_type }} --config=${{ inputs.variant }}
+        cp -r examples/ out/
+
+    - name: 'Build (WebAssembly)'
+      if: ${{ matrix.config.platform == 'wasm' }}
+      id: wasm-build
+      run: |
+        dub build --compiler=ldc2 --config=wasm --arch=wasm32-wasip2 --build=${{ inputs.build_type }}
+
+    - name: 'Archive'
+      id: archive
+      run: |
+        cd out/
+        tar -cvf ../inochi2d-${{ matrix.config.platform }}-${{ inputs.build_type }}.tar ./*
+      
+    - name: 'Make Artifact'
+      uses: actions/upload-artifact@v4
+      with:
+        name: 'inochi2d-${{ matrix.config.platform }}-${{ inputs.build_type }}'
+        path: |
+          inochi2d-${{ matrix.config.platform }}-${{ inputs.build_type }}.tar
+        retention-days: 1
+    
+    - name: 'Finalize'
+      id: finalize
+      run: |
+        echo "artifact=inochi2d-${{ matrix.config.platform }}-${{ inputs.build_type }}" >> $GITHUB_OUTPUT

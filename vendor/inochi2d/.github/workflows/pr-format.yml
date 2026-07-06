@@ -1,0 +1,32 @@
+name: Auto-format pull-request
+
+on:
+  pull_request:
+
+jobs:
+  dfmt:
+    runs-on: ubuntu-latest
+    permissions:
+      contents: write
+
+    steps:
+    - uses: actions/checkout@v5
+      with:
+        ref: ${{ github.head_ref }}
+        persist-credentials: true
+
+    - uses: dlang-community/setup-dlang@v1.4.0
+      with:
+        compiler: ldc-latest
+
+    - name: "Install clang-format"
+      run: |
+        sudo apt-get install clang-format
+    
+    - name: "Format PR"
+      run: |
+        ./scripts/fmt_all.sh
+    
+    - uses: stefanzweifel/git-auto-commit-action@v7
+      with:
+        commit_message: Re-formatted code.

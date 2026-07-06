@@ -1,0 +1,13 @@
+name "godot"
+description "Inochi2D for Godot"
+
+toolchainRequirements ldc=">=1.42.0" gdc="no" dmd="no"
+
+dependency "nugodot" version=">=0.5.2"
+dependency "inochi2d" path="../../"
+
+copyFiles "res/inochi2d.gdextension"
+
+targetType "dynamicLibrary"
+targetName "inochi2d_gd"
+targetPath "out/"

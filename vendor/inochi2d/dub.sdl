@@ -1,0 +1,121 @@
+toolchainRequirements dmd="no" gdc="no" ldc=">=1.40.0"
+
+
+
+
+
+
+//
+//          PACKAGE INFO
+//
+
+name "inochi2d"
+description "A bring-your-own-renderer realtime 2D puppet library"
+authors "Luna Nielsen"
+copyright "Copyright © 2020-2026, Inochi2D Project"
+license "BSD-2-Clause"
+
+
+
+
+
+
+//
+//          SUB PACKAGES
+//
+
+subPackage "modules/inp"
+subPackage "modules/godot"
+
+
+
+
+//
+//          DEPENDENCIES
+//
+
+// Internally needed libraries.
+dependency ":inp" version="*"
+dependency "numath" version=">=0.5.0"
+dependency "intel-intrinsics" version=">=1.14.7"
+dependency "gamut" version=">=3.4.1"
+
+// Numem
+dependency "nulib" version=">=0.4.7"
+dependency "nulib:io" version="*"
+dependency "numem" version=">=1.6.5"
+
+// NuRT
+dependency "nurt" version=">=0.2.3"
+
+// Base sub-configurations
+subConfiguration "gamut" "no-codecs"
+subConfiguration "nurt" "nurt-disabled"
+
+// Gamut codecs
+versions "decodeJPEG" "decodePNG" "decodeQOI" "decodeQOIX" "decodeTGA" \
+         "encodeJPEG" "encodePNG" "encodeQOI" "encodeQOIX" "encodeTGA"
+
+
+
+//
+//          BUILD FLAGS
+//
+
+copyFiles "LICENSE"
+targetPath "out/"
+
+// SIMD optimization flags.
+dflags "-mattr=+sse3,+sse4.1,+sse4.2" platform="x86_64"
+dflags "-mattr=+neon,+crc" platform="aarch64"
+dflags "-mattr=+simd128" platform="wasm"
+
+
+
+
+//
+//          CONFIGURATIONS
+//
+
+
+// Base configuration.
+// 
+// This configuration is to be used with
+configuration "static" {
+    targetType "library"
+
+    subConfiguration "nurt" "nurt-disabled"
+}
+
+// Configuration which uses nurt instead of druntime.
+//
+// This effectively disables usage of the D standard library!
+configuration "static-nurt" {
+    targetType "library"
+
+    subConfiguration "nurt" "nurt-enabled"
+}
+
+// C FFI Dylib Configuration
+configuration "dynamic" {
+    targetType "dynamicLibrary"
+    versions "IN_DYNLIB"
+
+    copyFiles "include/" "tech-docs"
+    subConfiguration "nurt" "nurt-enabled"
+}
+
+// WASM configuration
+configuration "wasm" {
+    targetType "executable"
+    versions "IN_DYNLIB" "IN_WASM"
+
+    subConfiguration "nurt" "nurt-enabled"
+    copyFiles "tech-docs" "dist/*"
+    lflags "--entry=in_init" "--allow-undefined"
+}
+
+// Unit tests
+configuration "unittest" {
+    dependency "nusilly" version="~>1.0"
+}
