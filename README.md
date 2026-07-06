@@ -46,3 +46,11 @@ npm run preview
 - [Three.js](https://threejs.org/) for 3D rendering
 - [inochi2d-ts](https://github.com/Inochi2D/inochi2d-ts) (vendored) for Inochi2D model loading
 - [MediaPipe Tasks Vision](https://developers.google.com/mediapipe/solutions/vision/face_landmarker) for face tracking
+
+## Credits
+
+The Inochi2D model loading/rendering code and puppet editor in this project are
+translated from and/or based on [Inochi2D](https://github.com/Inochi2D/inochi2d)
+and [Inochi Creator](https://github.com/Inochi2D/inochi-creator), both created by
+the Inochi2D Project and distributed under the BSD 2-Clause License. See
+[THIRD_PARTY_NOTICES.md](./THIRD_PARTY_NOTICES.md) for full attribution.

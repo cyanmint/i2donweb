@@ -36,6 +36,24 @@ export enum MaskingMode {
 export type NodeUuid = number;
 
 /**
+ * Additive offsets applied to a node by active parameter bindings.
+ * Reset every frame via `resetParamOffset()` before parameters are (re-)applied.
+ */
+export class ParamOffset {
+    trans: THREE.Vector3 = new THREE.Vector3(0, 0, 0);
+    rot: THREE.Vector3 = new THREE.Vector3(0, 0, 0);
+    scale: THREE.Vector2 = new THREE.Vector2(0, 0);
+    zsort: number = 0;
+
+    reset(): void {
+        this.trans.set(0, 0, 0);
+        this.rot.set(0, 0, 0);
+        this.scale.set(0, 0);
+        this.zsort = 0;
+    }
+}
+
+/**
  * Base type for all nodes.
  */
 export class Node {
@@ -55,32 +73,57 @@ export class Node {
     actualTransform: Transform = new Transform();
     actualZsort: number = 0;
 
+    /** Additive offset accumulated from active parameter bindings (see `Param.apply`). */
+    paramOffset: ParamOffset = new ParamOffset();
+
     /**
-     * Calculates the transform of this node.
+     * Resets this node's parameter-driven offsets. Called once per frame
+     * before `Puppet.updateParameters()` (re-)applies all active parameters.
+     */
+    resetParamOffset(): void {
+        this.paramOffset.reset();
+    }
+
+    /**
+     * Calculates the transform of this node, taking into account both its
+     * authored (base) transform and any offset contributed by active
+     * parameter bindings.
      */
     updateTransform() {
+        const trans = this.transform.trans.clone().add(this.paramOffset.trans);
+        const rot = this.transform.rot.clone().add(this.paramOffset.rot);
+        const scale = new THREE.Vector2(
+            this.transform.scale.x + this.paramOffset.scale.x,
+            this.transform.scale.y + this.paramOffset.scale.y
+        );
+        const zsort = this.zsort + this.paramOffset.zsort;
+
         this.transform.update();
 
         if (this.parent == null) {
-            this.actualTransform = this.transform;
-            this.actualZsort = this.zsort;
+            const newTransform = new Transform();
+            newTransform.rot = rot;
+            newTransform.trans = trans;
+            newTransform.scale = scale;
+            this.actualTransform = newTransform;
+            this.actualZsort = zsort;
         } else {
             const newTransform = new Transform();
-            newTransform.rot = this.parent.actualTransform.rot.clone().add(this.transform.rot);
-            newTransform.trans = this.parent.actualTransform.trans.clone().add(this.transform.trans);
+            newTransform.rot = this.parent.actualTransform.rot.clone().add(rot);
+            newTransform.trans = this.parent.actualTransform.trans.clone().add(trans);
             newTransform.scale = new THREE.Vector2(
-                this.parent.actualTransform.scale.x * this.transform.scale.x,
-                this.parent.actualTransform.scale.y * this.transform.scale.y
+                this.parent.actualTransform.scale.x * scale.x,
+                this.parent.actualTransform.scale.y * scale.y
             );
             this.actualTransform = newTransform;
-            this.actualZsort = this.parent.actualZsort + this.zsort;
+            this.actualZsort = this.parent.actualZsort + zsort;
         }
 
-        this.threeObj.position.set(this.transform.trans.x, this.transform.trans.y, this.transform.trans.z);
-        this.threeObj.scale.set(this.transform.scale.x, this.transform.scale.y, 1);
-        this.threeObj.rotation.x = this.transform.rot.x;
-        this.threeObj.rotation.y = this.transform.rot.y;
-        this.threeObj.rotation.z = this.transform.rot.z;
+        this.threeObj.position.set(trans.x, trans.y, trans.z);
+        this.threeObj.scale.set(scale.x, scale.y, 1);
+        this.threeObj.rotation.x = rot.x;
+        this.threeObj.rotation.y = rot.y;
+        this.threeObj.rotation.z = rot.z;
         this.threeObj.renderOrder = -this.actualZsort;
     }
 
@@ -89,6 +132,18 @@ export class Node {
 
     update() {
         this.updateTransform();
+    }
+
+    /**
+     * Recursively updates this node and all its descendants, in
+     * parent-to-child order (required so that `actualTransform` propagation
+     * is correct).
+     */
+    updateRecursive(): void {
+        this.update();
+        for (const child of this.children) {
+            child.updateRecursive();
+        }
     }
 
     create() {

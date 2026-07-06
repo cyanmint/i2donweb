@@ -8,6 +8,7 @@
 import { Texture } from 'three';
 import { Node } from './nodes/node';
 import { deserializeNode } from "./nodes/serialiser";
+import { Param } from './param';
 
 export const NO_THUMBNAIL = 4294967295;
 
@@ -58,14 +59,34 @@ export class Puppet {
     textures: Texture[] = [];
     rootNode: Node = new Node();
     nodes: Node[] = [];
+    params: Param[] = [];
+
+    /**
+     * Re-applies all of this puppet's parameters to their bound nodes/meshes
+     * and refreshes the puppet's transforms & mesh deformations accordingly.
+     * Should be called whenever a parameter's value changes.
+     */
+    updateParameters(): void {
+        for (const node of this.nodes) {
+            node.resetParamOffset();
+        }
+
+        for (const param of this.params) {
+            param.apply(this);
+        }
+
+        this.rootNode.updateRecursive();
+    }
 }
 
-export function deserializePuppet(json: { meta: PuppetMeta; nodes: Record<string, unknown> }, textures: Texture[]): Puppet {
+export function deserializePuppet(json: { meta: PuppetMeta; nodes: Record<string, unknown>; param?: unknown[] }, textures: Texture[]): Puppet {
     const puppet = new Puppet();
     puppet.meta = json.meta;
     puppet.textures = textures;
     puppet.rootNode = deserializeNode(puppet, json.nodes);
     puppet.rootNode.transform.scale.y *= -1;
+    // eslint-disable-next-line @typescript-eslint/no-explicit-any
+    puppet.params = Array.isArray(json.param) ? json.param.map((p) => Param.deserialize(p as any)) : [];
     puppet.rootNode.update();
     return puppet;
 }

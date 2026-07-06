@@ -24,6 +24,47 @@ export class Drawable extends Node {
     mesh: MeshData = new MeshData();
     masks: MaskData[] = [];
 
+    /**
+     * Additive per-vertex offset accumulated from active `deform` parameter
+     * bindings (see `Param.apply`). Sized to match `mesh.vertices`.
+     */
+    deformOffset: THREE.Vector2[] = [];
+
+    resetParamOffset(): void {
+        super.resetParamOffset();
+        if (this.deformOffset.length !== this.mesh.vertices.length) {
+            this.deformOffset = this.mesh.vertices.map(() => new THREE.Vector2(0, 0));
+        } else {
+            for (const offset of this.deformOffset) offset.set(0, 0);
+        }
+    }
+
+    /**
+     * Re-uploads the mesh's vertex positions (base position + parameter
+     * deform offset) to the GPU. Called every frame after parameters have
+     * been applied.
+     */
+    private applyDeform(): void {
+        if (!(this.threeObj instanceof THREE.Mesh)) return;
+        const position = this.threeObj.geometry.getAttribute('position') as THREE.BufferAttribute | undefined;
+        if (!position) return;
+
+        const origin = this.mesh.origin ?? new THREE.Vector2(0, 0);
+        for (let i = 0; i < this.mesh.vertices.length; i++) {
+            const vertex = this.mesh.vertices[i];
+            const offset = this.deformOffset[i];
+            const x = vertex.x + origin.x + (offset ? offset.x : 0);
+            const y = vertex.y + origin.y + (offset ? offset.y : 0);
+            position.setXY(i, x, y);
+        }
+        position.needsUpdate = true;
+    }
+
+    update() {
+        super.update();
+        this.applyDeform();
+    }
+
     protected onCreateMesh() {
         super.onCreateMesh();
 
