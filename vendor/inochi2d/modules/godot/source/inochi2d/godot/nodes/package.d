@@ -1,0 +1,1 @@
+module inochi2d.godot.nodes;

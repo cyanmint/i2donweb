@@ -1,0 +1,17 @@
+[configuration]
+entry_symbol = "__nugodot_entry"
+compatibility_minimum = "4.1"
+reloadable = false
+
+[libraries]
+linux = "./libinochi2d_gd.so"
+windows = "./inochi2d_gd.dll"
+
+[dependencies]
+linux = {
+    "res://inochi2d/libinochi2d_gd.so" : ""
+}
+
+windows = {
+    "res://inochi2d/inochi2d_gd.dll" : ""
+}

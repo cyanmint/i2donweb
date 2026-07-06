@@ -1,0 +1,24 @@
+{
+  "name": "i2donweb",
+  "private": true,
+  "version": "0.0.0",
+  "type": "module",
+  "license": "BSD-2-Clause",
+  "scripts": {
+    "dev": "vite",
+    "build": "tsc && vite build",
+    "preview": "vite preview"
+  },
+  "devDependencies": {
+    "@types/three": "^0.146.0",
+    "typescript": "~5.9.3",
+    "vite": "^8.0.0"
+  },
+  "dependencies": {
+    "@lunapaint/tga-codec": "^0.1.0",
+    "@mediapipe/tasks-vision": "^0.10.21",
+    "binary-parser": "^2.3.0",
+    "fast-png": "^6.2.0",
+    "three": "^0.146.0"
+  }
+}
